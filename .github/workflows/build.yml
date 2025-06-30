@@ -1,0 +1,37 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.5.0'
+        arch: 'x64'
+        modules: 'qtcharts'
+    
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_PREFIX_PATH=${{env.QTDIR}}
+    
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config Release
+    
+    - name: Deploy Qt
+      run: |
+        ${{env.QTDIR}}/bin/windeployqt.exe ${{github.workspace}}/build/Release/Wordle_Calculator.exe
+    
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: Wordle_Calculator_Windows
+        path: ${{github.workspace}}/build/Release/ 
