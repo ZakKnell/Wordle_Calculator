@@ -42,6 +42,7 @@ template <> constexpr inline auto MainMenuWindow::qt_create_metaobjectdata<qt_me
         "onPlayWordle",
         "",
         "onViewStats",
+        "onSolver",
         "onExit"
     };
 
@@ -50,8 +51,10 @@ template <> constexpr inline auto MainMenuWindow::qt_create_metaobjectdata<qt_me
         QtMocHelpers::SlotData<void()>(1, 2, QMC::AccessPrivate, QMetaType::Void),
         // Slot 'onViewStats'
         QtMocHelpers::SlotData<void()>(3, 2, QMC::AccessPrivate, QMetaType::Void),
-        // Slot 'onExit'
+        // Slot 'onSolver'
         QtMocHelpers::SlotData<void()>(4, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onExit'
+        QtMocHelpers::SlotData<void()>(5, 2, QMC::AccessPrivate, QMetaType::Void),
     };
     QtMocHelpers::UintData qt_properties {
     };
@@ -77,7 +80,8 @@ void MainMenuWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _
         switch (_id) {
         case 0: _t->onPlayWordle(); break;
         case 1: _t->onViewStats(); break;
-        case 2: _t->onExit(); break;
+        case 2: _t->onSolver(); break;
+        case 3: _t->onExit(); break;
         default: ;
         }
     }
@@ -103,14 +107,14 @@ int MainMenuWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 3)
+        if (_id < 4)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 3;
+        _id -= 4;
     }
     if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
-        if (_id < 3)
+        if (_id < 4)
             *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
-        _id -= 3;
+        _id -= 4;
     }
     return _id;
 }
@@ -301,6 +305,103 @@ int StatsWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
 
 // SIGNAL 0
 void StatsWindow::backToMenuRequested()
+{
+    QMetaObject::activate(this, &staticMetaObject, 0, nullptr);
+}
+namespace {
+struct qt_meta_tag_ZN12SolverWindowE_t {};
+} // unnamed namespace
+
+template <> constexpr inline auto SolverWindow::qt_create_metaobjectdata<qt_meta_tag_ZN12SolverWindowE_t>()
+{
+    namespace QMC = QtMocConstants;
+    QtMocHelpers::StringRefStorage qt_stringData {
+        "SolverWindow",
+        "backToMenuRequested",
+        "",
+        "onBackToMenu",
+        "onUpdateGuesses",
+        "onClearAll"
+    };
+
+    QtMocHelpers::UintData qt_methods {
+        // Signal 'backToMenuRequested'
+        QtMocHelpers::SignalData<void()>(1, 2, QMC::AccessPublic, QMetaType::Void),
+        // Slot 'onBackToMenu'
+        QtMocHelpers::SlotData<void()>(3, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onUpdateGuesses'
+        QtMocHelpers::SlotData<void()>(4, 2, QMC::AccessPrivate, QMetaType::Void),
+        // Slot 'onClearAll'
+        QtMocHelpers::SlotData<void()>(5, 2, QMC::AccessPrivate, QMetaType::Void),
+    };
+    QtMocHelpers::UintData qt_properties {
+    };
+    QtMocHelpers::UintData qt_enums {
+    };
+    return QtMocHelpers::metaObjectData<SolverWindow, qt_meta_tag_ZN12SolverWindowE_t>(QMC::MetaObjectFlag{}, qt_stringData,
+            qt_methods, qt_properties, qt_enums);
+}
+Q_CONSTINIT const QMetaObject SolverWindow::staticMetaObject = { {
+    QMetaObject::SuperData::link<QWidget::staticMetaObject>(),
+    qt_staticMetaObjectStaticContent<qt_meta_tag_ZN12SolverWindowE_t>.stringdata,
+    qt_staticMetaObjectStaticContent<qt_meta_tag_ZN12SolverWindowE_t>.data,
+    qt_static_metacall,
+    nullptr,
+    qt_staticMetaObjectRelocatingContent<qt_meta_tag_ZN12SolverWindowE_t>.metaTypes,
+    nullptr
+} };
+
+void SolverWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
+{
+    auto *_t = static_cast<SolverWindow *>(_o);
+    if (_c == QMetaObject::InvokeMetaMethod) {
+        switch (_id) {
+        case 0: _t->backToMenuRequested(); break;
+        case 1: _t->onBackToMenu(); break;
+        case 2: _t->onUpdateGuesses(); break;
+        case 3: _t->onClearAll(); break;
+        default: ;
+        }
+    }
+    if (_c == QMetaObject::IndexOfMethod) {
+        if (QtMocHelpers::indexOfMethod<void (SolverWindow::*)()>(_a, &SolverWindow::backToMenuRequested, 0))
+            return;
+    }
+}
+
+const QMetaObject *SolverWindow::metaObject() const
+{
+    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;
+}
+
+void *SolverWindow::qt_metacast(const char *_clname)
+{
+    if (!_clname) return nullptr;
+    if (!strcmp(_clname, qt_staticMetaObjectStaticContent<qt_meta_tag_ZN12SolverWindowE_t>.strings))
+        return static_cast<void*>(this);
+    return QWidget::qt_metacast(_clname);
+}
+
+int SolverWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
+{
+    _id = QWidget::qt_metacall(_c, _id, _a);
+    if (_id < 0)
+        return _id;
+    if (_c == QMetaObject::InvokeMetaMethod) {
+        if (_id < 4)
+            qt_static_metacall(this, _c, _id, _a);
+        _id -= 4;
+    }
+    if (_c == QMetaObject::RegisterMethodArgumentMetaType) {
+        if (_id < 4)
+            *reinterpret_cast<QMetaType *>(_a[0]) = QMetaType();
+        _id -= 4;
+    }
+    return _id;
+}
+
+// SIGNAL 0
+void SolverWindow::backToMenuRequested()
 {
     QMetaObject::activate(this, &staticMetaObject, 0, nullptr);
 }

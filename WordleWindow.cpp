@@ -17,6 +17,10 @@
 #include <QStringList>
 #include <algorithm>
 
+// Forward declaration for shared optimal guess function
+QString findOptimalGuessShared(const QSet<QString> &answerWords, const QSet<QString> &acceptedWords, const QList<QPair<QString, QString>> &guessFeedbackPairs, const QMap<int, QChar> &greenLetters, const QMap<QChar, QSet<int>> &yellowPositions, const QSet<QChar> &yellowLetters, const QSet<QChar> &grayLetters);
+QString findOptimalGuessWithConstraints(const QSet<QString>& answerWords, const QSet<QString>& acceptedWords, const QMap<int, QChar>& greenLetters, const QMap<QChar, QSet<int>>& yellowPositions, const QSet<QChar>& yellowLetters, const QSet<QChar>& grayLetters);
+
 // Global function to load word lists
 static QStringList loadWordList(const QString &filename) {
     QStringList words;
@@ -29,6 +33,264 @@ static QStringList loadWordList(const QString &filename) {
         }
     }
     return words;
+}
+
+// Add this function after the includes:
+QVector<QPair<QString, int>> getBestStartingWords(const QSet<QString>& answerWords, const QSet<QString>& acceptedWords, int topN = 10) {
+    // Combine all valid words
+    QSet<QString> allWords = answerWords;
+    for (const QString& w : acceptedWords) allWords.insert(w);
+    // Precompute letter frequencies by position from answer words
+    QVector<QMap<QChar, int>> posFreq(5);
+    for (const QString& word : answerWords) {
+        for (int i = 0; i < word.size() && i < 5; ++i) {
+            posFreq[i][word[i]]++;
+        }
+    }
+    QVector<QPair<QString, int>> scored;
+    for (const QString& word : allWords) {
+        QSet<QChar> uniqueLetters;
+        for (QChar c : word) uniqueLetters.insert(c);
+        if (uniqueLetters.size() < 5) continue; // Only 5-unique-letter words
+        int score = 0;
+        for (int i = 0; i < word.size() && i < 5; ++i) {
+            score += posFreq[i].value(word[i], 0);
+        }
+        score += uniqueLetters.size() * 2000;
+        score -= (word.length() - uniqueLetters.size()) * 10000;
+        scored.append(qMakePair(word, score));
+    }
+    std::sort(scored.begin(), scored.end(), [](const QPair<QString, int>& a, const QPair<QString, int>& b) {
+        return a.second > b.second;
+    });
+    if (scored.size() > topN) scored.resize(topN);
+    return scored;
+}
+
+// Function to get all valid words that match constraints
+QVector<QPair<QString, int>> getAllValidWordsWithConstraints(const QSet<QString>& answerWords, const QSet<QString>& acceptedWords, const QMap<int, QChar>& greenLetters, const QMap<QChar, QSet<int>>& yellowPositions, const QSet<QChar>& yellowLetters, const QSet<QChar>& grayLetters) {
+    QVector<QMap<QChar, int>> posFreq(5);
+    for (const QString& word : answerWords) {
+        for (int i = 0; i < word.size() && i < 5; ++i) {
+            posFreq[i][word[i]]++;
+        }
+    }
+    QSet<QString> allWords = answerWords;
+    for (const QString& w : acceptedWords) allWords.insert(w);
+    QVector<QPair<QString, int>> validWords;
+    // Build required counts and forbidden positions
+    QMap<QChar, int> requiredCount; // letter -> min count (only green positions count)
+    QMap<QChar, QSet<int>> forbiddenPositions = yellowPositions; // letter -> set of forbidden positions (yellow)
+    QMap<QChar, QSet<int>> greenPositions; // letter -> set of green positions
+    for (auto it = greenLetters.begin(); it != greenLetters.end(); ++it) {
+        requiredCount[it.value()]++;
+        greenPositions[it.value()].insert(it.key());
+    }
+    // Yellow positions are only forbidden, not counted toward required instances
+    for (const QString& word : allWords) {
+        bool valid = true;
+        QMap<QChar, int> wordCount;
+        // Green check
+        for (auto it = greenLetters.begin(); it != greenLetters.end(); ++it) {
+            if (word[it.key()] != it.value()) {
+                valid = false;
+                break;
+            }
+        }
+        if (!valid) continue;
+        // Yellow check (must not be in forbidden positions)
+        for (auto it = yellowPositions.begin(); it != yellowPositions.end(); ++it) {
+            QChar yellow = it.key();
+            for (int pos : it.value()) {
+                if (word[pos] == yellow) {
+                    valid = false;
+                    break;
+                }
+            }
+            if (!valid) break;
+        }
+        if (!valid) continue;
+        // Count letters in word and track positions
+        for (int i = 0; i < 5; ++i) {
+            wordCount[word[i]]++;
+        }
+        // Required count check (only green positions count)
+        for (auto it = requiredCount.begin(); it != requiredCount.end(); ++it) {
+            if (wordCount[it.key()] < it.value()) {
+                valid = false;
+                break;
+            }
+        }
+        if (!valid) continue;
+        // Gray logic: forbid gray letters only in positions not green/yellow for that letter
+        for (QChar gray : grayLetters) {
+            bool isGreenOrYellow = requiredCount.contains(gray) || yellowPositions.contains(gray);
+            if (!isGreenOrYellow) {
+                // If not green/yellow anywhere, must not appear at all
+                if (wordCount[gray] > 0) {
+                    valid = false;
+                    break;
+                }
+            } else {
+                // If green/yellow somewhere, must not appear in any other positions
+                for (int i = 0; i < 5; ++i) {
+                    bool isGreen = greenLetters.value(i, QChar()) == gray;
+                    bool isYellow = yellowPositions.value(gray).contains(i);
+                    if (!isGreen && !isYellow && word[i] == gray) {
+                        valid = false;
+                        break;
+                    }
+                }
+                if (!valid) break;
+            }
+        }
+        if (!valid) continue;
+        // Calculate score for this word
+        QSet<QChar> uniqueLetters;
+        int score = 0;
+        for (int i = 0; i < word.size() && i < 5; ++i) {
+            score += posFreq[i].value(word[i], 0);
+            uniqueLetters.insert(word[i]);
+        }
+        
+        // Bonus for using yellow letters (confirmed to be in solution)
+        int yellowLettersUsed = 0;
+        for (QChar yellow : yellowLetters) {
+            if (word.contains(yellow)) {
+                yellowLettersUsed++;
+            }
+        }
+        score += yellowLettersUsed * 5000; // Significant bonus for using yellow letters
+        
+        // Reduced penalty for repeated letters when yellow letters are involved
+        int repeatedLetters = word.length() - uniqueLetters.size();
+        if (yellowLettersUsed > 0) {
+            // If using yellow letters, reduce the penalty for repeated letters
+            score -= repeatedLetters * 1000; // Much smaller penalty
+        } else {
+            // If not using yellow letters, keep the original penalty
+            score -= repeatedLetters * 10000;
+        }
+        
+        score += uniqueLetters.size() * 2000;
+        validWords.append(qMakePair(word, score));
+    }
+    return validWords;
+}
+
+// Shared, optimized optimal guess function
+QString findOptimalGuessWithConstraints(const QSet<QString>& answerWords, const QSet<QString>& acceptedWords, const QMap<int, QChar>& greenLetters, const QMap<QChar, QSet<int>>& yellowPositions, const QSet<QChar>& yellowLetters, const QSet<QChar>& grayLetters) {
+    QVector<QMap<QChar, int>> posFreq(5);
+    for (const QString& word : answerWords) {
+        for (int i = 0; i < word.size() && i < 5; ++i) {
+            posFreq[i][word[i]]++;
+        }
+    }
+    QSet<QString> allWords = answerWords;
+    for (const QString& w : acceptedWords) allWords.insert(w);
+    QString bestWord;
+    int bestScore = -1;
+    // Build required counts and forbidden positions
+    QMap<QChar, int> requiredCount; // letter -> min count (only green positions count)
+    QMap<QChar, QSet<int>> forbiddenPositions = yellowPositions; // letter -> set of forbidden positions (yellow)
+    QMap<QChar, QSet<int>> greenPositions; // letter -> set of green positions
+    for (auto it = greenLetters.begin(); it != greenLetters.end(); ++it) {
+        requiredCount[it.value()]++;
+        greenPositions[it.value()].insert(it.key());
+    }
+    // Yellow positions are only forbidden, not counted toward required instances
+    for (const QString& word : allWords) {
+        bool valid = true;
+        QMap<QChar, int> wordCount;
+        // Green check
+        for (auto it = greenLetters.begin(); it != greenLetters.end(); ++it) {
+            if (word[it.key()] != it.value()) {
+                valid = false;
+                break;
+            }
+        }
+        if (!valid) continue;
+        // Yellow check (must not be in forbidden positions)
+        for (auto it = yellowPositions.begin(); it != yellowPositions.end(); ++it) {
+            QChar yellow = it.key();
+            for (int pos : it.value()) {
+                if (word[pos] == yellow) {
+                    valid = false;
+                    break;
+                }
+            }
+            if (!valid) break;
+        }
+        if (!valid) continue;
+        // Count letters in word and track positions
+        for (int i = 0; i < 5; ++i) {
+            wordCount[word[i]]++;
+        }
+        // Required count check (only green positions count)
+        for (auto it = requiredCount.begin(); it != requiredCount.end(); ++it) {
+            if (wordCount[it.key()] < it.value()) {
+                valid = false;
+                break;
+            }
+        }
+        if (!valid) continue;
+        // Gray logic: forbid gray letters only in positions not green/yellow for that letter
+        for (QChar gray : grayLetters) {
+            bool isGreenOrYellow = requiredCount.contains(gray) || yellowPositions.contains(gray);
+            if (!isGreenOrYellow) {
+                // If not green/yellow anywhere, must not appear at all
+                if (wordCount[gray] > 0) {
+                    valid = false;
+                    break;
+                }
+            } else {
+                // If green/yellow somewhere, must not appear in any other positions
+                for (int i = 0; i < 5; ++i) {
+                    bool isGreen = greenLetters.value(i, QChar()) == gray;
+                    bool isYellow = yellowPositions.value(gray).contains(i);
+                    if (!isGreen && !isYellow && word[i] == gray) {
+                        valid = false;
+                        break;
+                    }
+                }
+                if (!valid) break;
+            }
+        }
+        if (!valid) continue;
+        // Calculate score for this word
+        QSet<QChar> uniqueLetters;
+        int score = 0;
+        for (int i = 0; i < word.size() && i < 5; ++i) {
+            score += posFreq[i].value(word[i], 0);
+            uniqueLetters.insert(word[i]);
+        }
+        
+        // Bonus for using yellow letters (confirmed to be in solution)
+        int yellowLettersUsed = 0;
+        for (QChar yellow : yellowLetters) {
+            if (word.contains(yellow)) {
+                yellowLettersUsed++;
+            }
+        }
+        score += yellowLettersUsed * 5000; // Significant bonus for using yellow letters
+        
+        // Reduced penalty for repeated letters when yellow letters are involved
+        int repeatedLetters = word.length() - uniqueLetters.size();
+        if (yellowLettersUsed > 0) {
+            // If using yellow letters, reduce the penalty for repeated letters
+            score -= repeatedLetters * 1000; // Much smaller penalty
+        } else {
+            // If not using yellow letters, keep the original penalty
+            score -= repeatedLetters * 10000;
+        }
+        
+        score += uniqueLetters.size() * 2000;
+        if (score > bestScore) {
+            bestScore = score;
+            bestWord = word;
+        }
+    }
+    return bestWord;
 }
 
 // ============================================================================
@@ -45,16 +307,19 @@ MainMenuWindow::MainMenuWindow(QWidget *parent) : QWidget(parent) {
     // Buttons
     playButton = new QPushButton("Play Wordle", this);
     statsButton = new QPushButton("View Word Stats", this);
+    QPushButton *solverButton = new QPushButton("Wordle Solver", this);
     exitButton = new QPushButton("Exit", this);
     
     // Style buttons
     QString buttonStyle = "QPushButton { font-size: 16px; padding: 15px; margin: 5px; background-color: #4CAF50; color: white; border: none; border-radius: 5px; } QPushButton:hover { background-color: #45a049; }";
     playButton->setStyleSheet(buttonStyle);
     statsButton->setStyleSheet(buttonStyle.replace("#4CAF50", "#2196F3").replace("#45a049", "#1976D2"));
+    solverButton->setStyleSheet(buttonStyle.replace("#4CAF50", "#FF9800").replace("#45a049", "#F57C00"));
     exitButton->setStyleSheet(buttonStyle.replace("#4CAF50", "#f44336").replace("#45a049", "#d32f2f"));
     
     layout->addWidget(playButton);
     layout->addWidget(statsButton);
+    layout->addWidget(solverButton);
     layout->addWidget(exitButton);
     
     // Add some spacing
@@ -63,6 +328,7 @@ MainMenuWindow::MainMenuWindow(QWidget *parent) : QWidget(parent) {
     // Connect signals
     connect(playButton, &QPushButton::clicked, this, &MainMenuWindow::onPlayWordle);
     connect(statsButton, &QPushButton::clicked, this, &MainMenuWindow::onViewStats);
+    connect(solverButton, &QPushButton::clicked, this, &MainMenuWindow::onSolver);
     connect(exitButton, &QPushButton::clicked, this, &MainMenuWindow::onExit);
     
     setLayout(layout);
@@ -85,6 +351,16 @@ void MainMenuWindow::onViewStats() {
         statsWindow->deleteLater();
     });
     statsWindow->show();
+    this->hide();
+}
+
+void MainMenuWindow::onSolver() {
+    SolverWindow *solverWindow = new SolverWindow();
+    connect(solverWindow, &SolverWindow::backToMenuRequested, this, [this, solverWindow]() {
+        this->show();
+        solverWindow->deleteLater();
+    });
+    solverWindow->show();
     this->hide();
 }
 
@@ -255,36 +531,38 @@ void WordleGameWindow::startNewGame() {
     }
     answer = answers.at(QRandomGenerator::global()->bounded(answers.size()));
     guesses = 0;
-    optimalGuessMode = false;
     input->clear();
     guessesDisplay->clear();
     guessHistory.clear();
     feedbackHistory.clear();
     optimalGuessLabel->clear();
-    optimalGuessButton->setChecked(false);
-    
+    input->setReadOnly(false);
+    input->setPlaceholderText("");
     for (int i = 0; i < 26; ++i) {
         keyboardButtons[i]->setStyleSheet("QPushButton { background-color: white; color: black; border: 1px solid gray; }");
         letterStates[QChar('A' + i)] = 0;
     }
-    
     messageLabel->setText("You have 5 guesses.");
     input->setEnabled(true);
+    if (optimalGuessButton->isChecked()) {
+        updateOptimalGuess();
+    }
 }
 
 void WordleGameWindow::onGuess() {
+    if (input->isReadOnly()) {
+        startNewGame();
+        return;
+    }
     QString guess = input->text().toUpper();
-    
     if (guess.length() != 5) {
         QMessageBox::warning(this, "Invalid Input", "Please enter a 5-letter word.");
         return;
     }
-    
     if (!validWords.contains(guess)) {
         QMessageBox::warning(this, "Invalid Word", "That's not a valid word.");
         return;
     }
-    
     guesses++;
     QString feedback = generateFeedback(guess);
     
@@ -307,17 +585,19 @@ void WordleGameWindow::onGuess() {
     
     updateKeyboard(guess, feedback);
     
-    // Update optimal guess if mode is enabled
-    if (optimalGuessMode) {
+    // Update optimal guess if button is checked
+    if (optimalGuessButton->isChecked()) {
         updateOptimalGuess();
     }
     
     if (guess == answer) {
         messageLabel->setText("Congratulations! You won!");
-        input->setEnabled(false);
+        input->setReadOnly(true);
+        input->setPlaceholderText("Press Enter to start a new game");
     } else if (guesses >= 5) {
         messageLabel->setText(QString("Game over! The word was: %1").arg(answer));
-        input->setEnabled(false);
+        input->setReadOnly(true);
+        input->setPlaceholderText("Press Enter to start a new game");
     } else {
         messageLabel->setText(QString("You have %1 guesses left.").arg(5 - guesses));
     }
@@ -347,35 +627,27 @@ void WordleGameWindow::onShowOptimalGuess() {
 }
 
 void WordleGameWindow::updateOptimalGuess() {
-    QString optimalGuess = findOptimalGuess();
-    if (!optimalGuess.isEmpty()) {
-        optimalGuessLabel->setText(QString("Optimal: %1").arg(optimalGuess));
-    } else {
-        optimalGuessLabel->setText("No optimal guess found");
-    }
-}
-
-QString WordleGameWindow::findOptimalGuess() {
-    // Load word lists
-    QStringList answerWords = loadWordList("WordList.txt");
-    QStringList acceptedWords = loadWordList("AcceptedWordList");
-    
-    // For first guess, always use the best starting word
     if (guessHistory.isEmpty()) {
-        // Use the best starting word from analysis
-        return "STARE";  // This should be replaced with the actual best word from your analysis
+        QStringList answerList = loadWordList("WordList.txt");
+        QStringList acceptedList = loadWordList("AcceptedWordList");
+        QSet<QString> answerSet(answerList.begin(), answerList.end());
+        QSet<QString> acceptedSet(acceptedList.begin(), acceptedList.end());
+        QVector<QPair<QString, int>> best = getBestStartingWords(answerSet, acceptedSet, 1);
+        if (!best.isEmpty()) {
+            optimalGuessLabel->setText(QString("Optimal: %1").arg(best[0].first));
+        } else {
+            optimalGuessLabel->setText("No optimal guess found");
+        }
+        return;
     }
-    
-    // Collect information from previous guesses
-    QSet<QChar> grayLetters;  // Letters that are not in the word
-    QSet<QChar> yellowLetters;  // Letters that are in the word but wrong position
-    QMap<int, QChar> greenLetters;  // Letters in correct positions
-    QMap<QChar, QSet<int>> yellowPositions;  // Positions where yellow letters cannot be
-    
+    // Reconstruct constraints from guessHistory and feedbackHistory
+    QMap<int, QChar> greenLetters;
+    QMap<QChar, QSet<int>> yellowPositions;
+    QSet<QChar> yellowLetters;
+    QSet<QChar> grayLetters;
     for (int i = 0; i < guessHistory.size(); ++i) {
         QString guess = guessHistory[i];
         QString feedback = feedbackHistory[i];
-        
         for (int j = 0; j < 5; ++j) {
             QChar letter = guess[j];
             if (feedback[j] == 'G') {
@@ -384,7 +656,6 @@ QString WordleGameWindow::findOptimalGuess() {
                 yellowLetters.insert(letter);
                 yellowPositions[letter].insert(j);
             } else if (feedback[j] == 'X') {
-                // Only add to gray letters if it's not also yellow or green
                 bool isAlsoYellowOrGreen = false;
                 for (int k = 0; k < 5; ++k) {
                     if (k != j && guess[k] == letter && feedback[k] != 'X') {
@@ -398,230 +669,12 @@ QString WordleGameWindow::findOptimalGuess() {
             }
         }
     }
-    
-    // Filter words based on previous guesses - only consider answer words
-    QSet<QString> possibleWords(answerWords.begin(), answerWords.end());
-    QSet<QString> newPossibleWords;
-    
-    for (const QString &word : possibleWords) {
-        bool isValid = true;
-        
-        // Check green letters (must be in correct position)
-        for (auto it = greenLetters.begin(); it != greenLetters.end(); ++it) {
-            if (word[it.key()] != it.value()) {
-                isValid = false;
-                break;
-            }
-        }
-        
-        if (!isValid) continue;
-        
-        // Check yellow letters (must be in word but not in forbidden positions)
-        for (QChar yellowLetter : yellowLetters) {
-            bool found = false;
-            QSet<int> forbiddenPositions = yellowPositions.value(yellowLetter);
-            
-            for (int pos = 0; pos < 5; ++pos) {
-                if (word[pos] == yellowLetter && !forbiddenPositions.contains(pos)) {
-                    found = true;
-                    break;
-                }
-            }
-            
-            if (!found) {
-                isValid = false;
-                break;
-            }
-        }
-        
-        if (!isValid) continue;
-        
-        // Check gray letters (should not be in word)
-        for (QChar grayLetter : grayLetters) {
-            if (word.contains(grayLetter)) {
-                isValid = false;
-                break;
-            }
-        }
-        
-        if (isValid) {
-            newPossibleWords.insert(word);
-        }
+    QString optimal = findOptimalGuessWithConstraints(validWords, validWords, greenLetters, yellowPositions, yellowLetters, grayLetters);
+    if (!optimal.isEmpty()) {
+        optimalGuessLabel->setText(QString("Optimal: %1").arg(optimal));
+    } else {
+        optimalGuessLabel->setText("No optimal guess found");
     }
-    
-    possibleWords = newPossibleWords;
-    
-    // Calculate letter frequency for remaining possible words
-    QMap<QChar, int> letterFreq;
-    for (const QString &word : possibleWords) {
-        for (QChar c : word) {
-            letterFreq[c]++;
-        }
-    }
-    
-    // If we have very few possible words, prioritize actual possible answers
-    if (possibleWords.size() <= 5 && !possibleWords.isEmpty()) {
-        // Among possible answers, find the one with best letter frequency
-        QString bestPossibleWord;
-        int bestScore = -1;
-        
-        for (const QString &word : possibleWords) {
-            int score = 0;
-            for (QChar c : word) {
-                score += letterFreq.value(c, 0);
-            }
-            if (score > bestScore) {
-                bestScore = score;
-                bestPossibleWord = word;
-            }
-        }
-        return bestPossibleWord;
-    }
-    
-    // Score words based on letter frequency and constraints - only consider answer words
-    QString bestWord;
-    int bestScore = -1;
-    
-    // Prioritize possible answers when we have few left
-    bool prioritizePossibleAnswers = (possibleWords.size() <= 10);
-    
-    for (const QString &word : answerWords) {
-        int score = 0;
-        QSet<QChar> uniqueLetters;
-        
-        // Check if word violates any constraints
-        bool violatesConstraints = false;
-        
-        // Check gray letters
-        for (QChar grayLetter : grayLetters) {
-            if (word.contains(grayLetter)) {
-                violatesConstraints = true;
-                break;
-            }
-        }
-        
-        if (violatesConstraints) continue;
-        
-        // Check yellow letters (must be moved to different positions)
-        for (QChar yellowLetter : yellowLetters) {
-            QSet<int> forbiddenPositions = yellowPositions.value(yellowLetter);
-            bool hasYellowLetter = false;
-            bool inValidPosition = false;
-            
-            for (int pos = 0; pos < 5; ++pos) {
-                if (word[pos] == yellowLetter) {
-                    hasYellowLetter = true;
-                    if (!forbiddenPositions.contains(pos)) {
-                        inValidPosition = true;
-                        break;
-                    }
-                }
-            }
-            
-            if (hasYellowLetter && !inValidPosition) {
-                violatesConstraints = true;
-                break;
-            }
-        }
-        
-        if (violatesConstraints) continue;
-        
-        // Score based on letter frequency in remaining possible words
-        for (QChar c : word) {
-            score += letterFreq.value(c, 0);
-            uniqueLetters.insert(c);
-        }
-        
-        // Bonus for using yellow letters in new positions
-        for (QChar c : word) {
-            if (yellowLetters.contains(c)) {
-                score += 100;  // Bonus for using yellow letters
-            }
-        }
-        
-        // Extremely strong bonus for unique letters and penalty for repeated letters
-        score += uniqueLetters.size() * 1000;  // Very strong bonus for more unique letters
-        score -= (word.length() - uniqueLetters.size()) * 5000;  // Very strong penalty for repeated letters
-        
-        // Heavy bonus for possible answers when we're getting close
-        if (prioritizePossibleAnswers && possibleWords.contains(word)) {
-            score += 10000;  // Massive bonus for possible answers
-        }
-        
-        if (score > bestScore) {
-            bestScore = score;
-            bestWord = word;
-        }
-    }
-    
-    // If no good answer word found, try accepted words as fallback
-    if (bestWord.isEmpty()) {
-        for (const QString &word : acceptedWords) {
-            int score = 0;
-            QSet<QChar> uniqueLetters;
-            
-            // Check if word violates any constraints
-            bool violatesConstraints = false;
-            
-            // Check gray letters
-            for (QChar grayLetter : grayLetters) {
-                if (word.contains(grayLetter)) {
-                    violatesConstraints = true;
-                    break;
-                }
-            }
-            
-            if (violatesConstraints) continue;
-            
-            // Check yellow letters (must be moved to different positions)
-            for (QChar yellowLetter : yellowLetters) {
-                QSet<int> forbiddenPositions = yellowPositions.value(yellowLetter);
-                bool hasYellowLetter = false;
-                bool inValidPosition = false;
-                
-                for (int pos = 0; pos < 5; ++pos) {
-                    if (word[pos] == yellowLetter) {
-                        hasYellowLetter = true;
-                        if (!forbiddenPositions.contains(pos)) {
-                            inValidPosition = true;
-                            break;
-                        }
-                    }
-                }
-                
-                if (hasYellowLetter && !inValidPosition) {
-                    violatesConstraints = true;
-                    break;
-                }
-            }
-            
-            if (violatesConstraints) continue;
-            
-            // Score based on letter frequency
-            for (QChar c : word) {
-                score += letterFreq.value(c, 0);
-                uniqueLetters.insert(c);
-            }
-            
-            // Bonus for using yellow letters
-            for (QChar c : word) {
-                if (yellowLetters.contains(c)) {
-                    score += 100;
-                }
-            }
-            
-            // Strong bonus for unique letters
-            score += uniqueLetters.size() * 1000;
-            score -= (word.length() - uniqueLetters.size()) * 5000;
-            
-            if (score > bestScore) {
-                bestScore = score;
-                bestWord = word;
-            }
-        }
-    }
-    
-    return bestWord;
 }
 
 QString WordleGameWindow::generateFeedback(const QString &guess) {
@@ -789,10 +842,272 @@ void StatsWindow::loadAndDisplayStats() {
         stats += left.leftJustified(26, ' ') + " |  " + right + "\n";
     }
     
+    stats += "\n=== TOP STARTING WORDS (CONSISTENT ALGORITHM) ===\n\n";
+    QSet<QString> answerSet = QSet<QString>(answerWords.begin(), answerWords.end());
+    QSet<QString> acceptedSet = QSet<QString>(acceptedWords.begin(), acceptedWords.end());
+    QVector<QPair<QString, int>> bestWords = getBestStartingWords(answerSet, acceptedSet, 10);
+    stats += "Rank  Word    Score\n";
+    stats += "----------------------\n";
+    for (int i = 0; i < bestWords.size(); ++i) {
+        stats += QString("%1     %2    %3\n").arg(i+1, 4).arg(bestWords[i].first, 4).arg(bestWords[i].second, 8);
+    }
+    
     statsDisplay->setPlainText(stats);
 }
 
 void StatsWindow::onBackToMenu() {
+    emit backToMenuRequested();
+    this->close();
+}
+
+// ============================================================================
+// SolverWindow Implementation
+// ============================================================================
+
+SolverWindow::SolverWindow(QWidget *parent) : QWidget(parent) {
+    setWindowTitle("Wordle Solver");
+    setFixedSize(600, 500);
+    
+    layout = new QVBoxLayout(this);
+    
+    // Set dark background for the window
+    this->setStyleSheet("background-color: #2D2D2D;");
+
+    // Title
+    QLabel *titleLabel = new QLabel("Wordle Solver", this);
+    titleLabel->setAlignment(Qt::AlignCenter);
+    titleLabel->setStyleSheet("QLabel { font-size: 28px; font-weight: bold; color: white; margin: 10px; }");
+    layout->addWidget(titleLabel);
+    
+    // Feedback input area
+    feedbackLayout = new QHBoxLayout();
+    
+    // Green letters (correct position)
+    for (int i = 0; i < 5; ++i) {
+        greenBoxes[i] = new QLineEdit(this);
+        greenBoxes[i]->setMaxLength(1);
+        greenBoxes[i]->setFixedWidth(40);
+        greenBoxes[i]->setStyleSheet("QLineEdit { font-size: 18px; padding: 10px; border: 2px solid #4CAF50; background: black; color: white; }");
+        greenBoxes[i]->setPlaceholderText("");
+        feedbackLayout->addWidget(greenBoxes[i]);
+        
+        // Auto-tab to next green box when a letter is entered
+        connect(greenBoxes[i], &QLineEdit::textChanged, [this, i](const QString &text) {
+            if (text.length() == 1 && i < 4) {
+                greenBoxes[i + 1]->setFocus();
+            }
+        });
+    }
+    
+    feedbackLayout->addSpacing(20);
+    
+    // Yellow letters (wrong position)
+    for (int i = 0; i < 5; ++i) {
+        yellowBoxes[i] = new QLineEdit(this);
+        yellowBoxes[i]->setMaxLength(5);
+        yellowBoxes[i]->setFixedWidth(40);
+        yellowBoxes[i]->setStyleSheet("QLineEdit { font-size: 18px; padding: 10px; border: 2px solid orange; background: black; color: white; }");
+        yellowBoxes[i]->setPlaceholderText("");
+        feedbackLayout->addWidget(yellowBoxes[i]);
+    }
+    layout->addLayout(feedbackLayout);
+
+    // Gray letters (not in word) - placed below
+    QHBoxLayout *grayLayout = new QHBoxLayout();
+    grayInput = new QLineEdit(this);
+    grayInput->setMaxLength(26);
+    grayInput->setFixedWidth(220);
+    grayInput->setStyleSheet("QLineEdit { font-size: 18px; padding: 10px; border: 2px solid #9E9E9E; background: black; color: white; }");
+    grayInput->setPlaceholderText("");
+    grayLayout->addWidget(grayInput);
+    grayLayout->addStretch();
+    layout->addLayout(grayLayout);
+
+    // Buttons
+    buttonLayout = new QHBoxLayout();
+    QString mainButtonStyle = "QPushButton { font-size: 16px; padding: 15px; margin: 5px; background-color: #444; color: white; border: none; border-radius: 5px; } QPushButton:hover { background-color: #666; }";
+    QString clearButtonStyle = "QPushButton { font-size: 16px; padding: 15px; margin: 5px; background-color: #444; color: white; border: none; border-radius: 5px; } QPushButton:hover { background-color: #666; }";
+    QString backButtonStyle = "QPushButton { font-size: 14px; padding: 10px; background-color: #444; color: white; border: none; border-radius: 5px; } QPushButton:hover { background-color: #666; }";
+    updateGuessesButton = new QPushButton("Update Top Guesses", this);
+    updateGuessesButton->setStyleSheet(mainButtonStyle);
+    clearAllButton = new QPushButton("Clear All", this);
+    clearAllButton->setStyleSheet(clearButtonStyle);
+    buttonLayout->addWidget(updateGuessesButton);
+    buttonLayout->addWidget(clearAllButton);
+    layout->addLayout(buttonLayout);
+
+    // Back button
+    backToMenuButton = new QPushButton("Back to Menu", this);
+    backToMenuButton->setStyleSheet(backButtonStyle);
+    layout->addWidget(backToMenuButton);
+    
+    // Connect signals
+    connect(updateGuessesButton, &QPushButton::clicked, this, &SolverWindow::onUpdateGuesses);
+    connect(clearAllButton, &QPushButton::clicked, this, &SolverWindow::onClearAll);
+    connect(backToMenuButton, &QPushButton::clicked, this, &SolverWindow::onBackToMenu);
+    connect(grayInput, &QLineEdit::returnPressed, this, &SolverWindow::onUpdateGuesses);
+    
+    setLayout(layout);
+    
+    // Load word lists
+    loadWordLists();
+    
+    // Initialize letter states
+    QString letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    for (QChar c : letters) {
+        letterStates[c] = 0;
+    }
+
+    // Add optimal guess label above possibleAnswersBox
+    optimalGuessLabel = new QLabel("Optimal Guess: ", this);
+    optimalGuessLabel->setStyleSheet("QLabel { font-size: 16px; font-weight: bold; color: white; margin-bottom: 4px; }");
+    layout->addWidget(optimalGuessLabel);
+
+    // possibleAnswersBox as before
+    possibleAnswersBox = new QLabel("", this);
+    possibleAnswersBox->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+    possibleAnswersBox->setStyleSheet("QLabel { font-size: 16px; font-weight: bold; color: white; background: transparent; min-height: 120px; max-height: 120px; }");
+    possibleAnswersBox->setMinimumHeight(120);
+    possibleAnswersBox->setMaximumHeight(120);
+    possibleAnswersBox->setWordWrap(true);
+    layout->addWidget(possibleAnswersBox);
+}
+
+void SolverWindow::loadWordLists() {
+    QStringList answerList = loadWordList("WordList.txt");
+    QStringList acceptedList = loadWordList("AcceptedWordList");
+    
+    answerWords = QSet<QString>(answerList.begin(), answerList.end());
+    acceptedWords = QSet<QString>(acceptedList.begin(), acceptedList.end());
+}
+
+void SolverWindow::onUpdateGuesses() {
+    updateLetterStates();
+    QVector<QPair<QString, int>> topGuesses = findTopGuesses(10); // get top 10 possible answers
+    if (topGuesses.isEmpty()) {
+        optimalGuessLabel->setText("Optimal Guess: None");
+        possibleAnswersBox->setText("No valid words found with current constraints");
+    } else {
+        optimalGuessLabel->setText(QString("Optimal Guess: %1").arg(topGuesses[0].first));
+        int perRow = 5; // Reduced from 8 to 5 for better readability
+        QString display;
+        for (int i = 0; i < topGuesses.size(); ++i) {
+            display += topGuesses[i].first;
+            if ((i + 1) % perRow == 0)
+                display += "\n";
+            else
+                display += "     "; // Increased spacing from 4 to 5 spaces
+        }
+        possibleAnswersBox->setText(display);
+    }
+}
+
+void SolverWindow::onClearAll() {
+    guessFeedbackPairs.clear();
+    letterStates.clear();
+    
+    // Reset letter states
+    QString letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    for (QChar c : letters) {
+        letterStates[c] = 0;
+    }
+    
+    // Clear all input boxes
+    for (int i = 0; i < 5; ++i) {
+        greenBoxes[i]->clear();
+        yellowBoxes[i]->clear();
+    }
+    grayInput->clear();
+    
+    possibleAnswersBox->clear();
+}
+
+void SolverWindow::updateLetterStates() {
+    // Reset letter states
+    QString letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    for (QChar c : letters) {
+        letterStates[c] = 0;
+    }
+    
+    // Process green letters
+    for (int i = 0; i < 5; ++i) {
+        QString greenLetter = greenBoxes[i]->text().trimmed().toUpper();
+        if (!greenLetter.isEmpty() && greenLetter.length() == 1 && greenLetter[0].isLetter()) {
+            letterStates[greenLetter[0]] = 3; // Green
+        }
+    }
+    
+    // Process yellow letters
+    for (int i = 0; i < 5; ++i) {
+        QString yellowLetters = yellowBoxes[i]->text().trimmed().toUpper();
+        for (QChar c : yellowLetters) {
+            if (c.isLetter() && letterStates[c] < 2) {
+                letterStates[c] = 2; // Yellow
+            }
+        }
+    }
+    
+    // Process gray letters
+    QString grayLetters = grayInput->text().trimmed().toUpper();
+    for (QChar c : grayLetters) {
+        if (c.isLetter() && letterStates[c] == 0) {
+            letterStates[c] = 1; // Gray
+        }
+    }
+}
+
+QVector<QPair<QString, int>> SolverWindow::findTopGuesses(int count) {
+    // If all feedback boxes are empty, use getBestStartingWords
+    bool allEmpty = true;
+    for (int i = 0; i < 5; ++i) {
+        if (!greenBoxes[i]->text().trimmed().isEmpty() || !yellowBoxes[i]->text().trimmed().isEmpty()) {
+            allEmpty = false;
+            break;
+        }
+    }
+    if (allEmpty && grayInput->text().trimmed().isEmpty()) {
+        QVector<QPair<QString, int>> best = getBestStartingWords(answerWords, acceptedWords, count);
+        return best;
+    }
+    
+    // Build constraints from UI
+    QMap<int, QChar> greenLetters;
+    QMap<QChar, QSet<int>> yellowPositions;
+    QSet<QChar> yellowLetters;
+    QSet<QChar> grayLetters;
+    
+    for (int i = 0; i < 5; ++i) {
+        QString green = greenBoxes[i]->text().trimmed().toUpper();
+        if (!green.isEmpty() && green[0].isLetter()) greenLetters[i] = green[0];
+        
+        QString yellow = yellowBoxes[i]->text().trimmed().toUpper();
+        for (QChar c : yellow) {
+            if (c.isLetter()) {
+                yellowLetters.insert(c);
+                yellowPositions[c].insert(i);
+            }
+        }
+    }
+    
+    QString gray = grayInput->text().trimmed().toUpper();
+    for (QChar c : gray) if (c.isLetter()) grayLetters.insert(c);
+    
+    // Get all valid words that match constraints
+    QVector<QPair<QString, int>> validWords = getAllValidWordsWithConstraints(answerWords, acceptedWords, greenLetters, yellowPositions, yellowLetters, grayLetters);
+    
+    // Sort by score (highest first) and return top count
+    std::sort(validWords.begin(), validWords.end(), [](const QPair<QString, int>& a, const QPair<QString, int>& b) {
+        return a.second > b.second;
+    });
+    
+    if (validWords.size() > count) {
+        validWords.resize(count);
+    }
+    
+    return validWords;
+}
+
+void SolverWindow::onBackToMenu() {
     emit backToMenuRequested();
     this->close();
 } 
