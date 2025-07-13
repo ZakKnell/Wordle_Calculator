@@ -16,9 +16,8 @@ jobs:
     - name: Setup Qt
       uses: jurplel/install-qt-action@v3
       with:
-        version: '6.5.0'
+        version: '6.6.0'
         arch: 'x64'
-        modules: 'qtcharts'
     
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_PREFIX_PATH=${{env.QTDIR}}
@@ -45,9 +44,8 @@ jobs:
     - name: Setup Qt
       uses: jurplel/install-qt-action@v3
       with:
-        version: '6.5.0'
+        version: '6.6.0'
         arch: 'x64'
-        modules: 'qtcharts'
     
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_PREFIX_PATH=${{env.QTDIR}}
