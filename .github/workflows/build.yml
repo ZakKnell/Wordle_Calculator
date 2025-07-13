@@ -66,20 +66,13 @@ jobs:
       run: |
         if [ -d "${{github.workspace}}/build/Wordle_Calculator.app" ]; then
           echo "Deploying Qt libraries..."
-          ${{env.QTDIR}}/bin/macdeployqt ${{github.workspace}}/build/Wordle_Calculator.app -verbose=2
+          ${{env.QTDIR}}/bin/macdeployqt ${{github.workspace}}/build/Wordle_Calculator.app
           echo "Qt deployment completed successfully"
-          echo "App bundle contents:"
-          find ${{github.workspace}}/build/Wordle_Calculator.app -name "*.dylib" -o -name "*.framework"
+          echo "App bundle size:"
+          du -sh ${{github.workspace}}/build/Wordle_Calculator.app
         else
           echo "App bundle not found, skipping Qt deployment"
           exit 0
-        fi
-    
-    - name: Test app bundle
-      run: |
-        if [ -d "${{github.workspace}}/build/Wordle_Calculator.app" ]; then
-          echo "Testing app bundle..."
-          ${{github.workspace}}/build/Wordle_Calculator.app/Contents/MacOS/Wordle_Calculator --help || echo "App test completed"
         fi
     
     - name: Upload macOS Artifacts
