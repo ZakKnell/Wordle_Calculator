@@ -1,2 +1,0 @@
-set(__QT_DEPLOY_TARGET_Wordle_Calculator_FILE /Users/zak/CLionProjects/Wordle_Calculator/cmake-build-debug/Wordle_Calculator)
-set(__QT_DEPLOY_TARGET_Wordle_Calculator_TYPE EXECUTABLE)

@@ -1,5 +1,0 @@
-/Users/zak/CLionProjects/Wordle_Calculator/cmake-build-debug/CMakeFiles/Wordle_Calculator.dir
-/Users/zak/CLionProjects/Wordle_Calculator/cmake-build-debug/CMakeFiles/edit_cache.dir
-/Users/zak/CLionProjects/Wordle_Calculator/cmake-build-debug/CMakeFiles/rebuild_cache.dir
-/Users/zak/CLionProjects/Wordle_Calculator/cmake-build-debug/CMakeFiles/Wordle_Calculator_autogen_timestamp_deps.dir
-/Users/zak/CLionProjects/Wordle_Calculator/cmake-build-debug/CMakeFiles/Wordle_Calculator_autogen.dir
