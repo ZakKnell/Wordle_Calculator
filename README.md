@@ -4,10 +4,10 @@ A C++ Qt-based Wordle solver and game with advanced analysis features.
 
 ## Features
 
-- **Game Mode**: Play Wordle against the computer with official word lists
+- **Game Mode**: Play Wordle with optional help from computer
 - **Solver Mode**: Get optimal guesses based on your feedback (green/yellow/gray letters)
 - **Stats Mode**: View letter frequency analysis and optimal first guesses
-- **Smart Algorithm**: Advanced scoring that prioritizes yellow letters and considers letter frequency
+
 
 ## Downloads
 
@@ -59,13 +59,9 @@ cmake --build build --config Release
   - **Yellow letters**: Type the letter in the yellow box  
   - **Gray letters**: Type the letter in the gray box
 - Click "Get Optimal Guess" for the best next word
-- View all possible remaining words
+- View list of top guesses
 
 ### Stats Mode
 - See letter frequency analysis
 - View optimal first guesses
 - Analyze word patterns
-
-## License
-
-This project is open source. Feel free to contribute or modify for your own use. 
