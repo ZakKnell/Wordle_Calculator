@@ -65,10 +65,10 @@ jobs:
     - name: Deploy Qt (if app exists)
       run: |
         if [ -d "${{github.workspace}}/build/Wordle_Calculator.app" ]; then
-          ${{env.QTDIR}}/bin/macdeployqt ${{github.workspace}}/build/Wordle_Calculator.app -dmg
-          echo "DMG created successfully"
+          ${{env.QTDIR}}/bin/macdeployqt ${{github.workspace}}/build/Wordle_Calculator.app
+          echo "Qt deployment completed successfully"
         else
-          echo "App bundle not found, skipping DMG creation"
+          echo "App bundle not found, skipping Qt deployment"
           exit 0
         fi
     
@@ -76,5 +76,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Wordle_Calculator_macOS
-        path: ${{github.workspace}}/build/Wordle_Calculator.dmg
+        path: ${{github.workspace}}/build/Wordle_Calculator.app
         if-no-files-found: ignore 
