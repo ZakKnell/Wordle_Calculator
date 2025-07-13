@@ -16,7 +16,7 @@ jobs:
     - name: Setup Qt
       uses: jurplel/install-qt-action@v3
       with:
-        version: '6.6.0'
+        version: '6.5.3'
         arch: 'x64'
     
     - name: Configure CMake
@@ -41,14 +41,14 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Setup Qt
-      uses: jurplel/install-qt-action@v3
-      with:
-        version: '6.6.0'
-        arch: 'x64'
+    - name: Install Qt using Homebrew
+      run: |
+        brew install qt@6
+        echo "QTDIR=/opt/homebrew/opt/qt@6" >> $GITHUB_ENV
+        echo "CMAKE_PREFIX_PATH=/opt/homebrew/opt/qt@6" >> $GITHUB_ENV
     
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_PREFIX_PATH=${{env.QTDIR}}
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_PREFIX_PATH=${{env.CMAKE_PREFIX_PATH}}
     
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config Release
