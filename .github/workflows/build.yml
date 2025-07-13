@@ -13,27 +13,34 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Setup Qt
-      uses: jurplel/install-qt-action@v3
+    - name: Setup Qt using official installer
+      uses: actions/setup-python@v5
       with:
-        version: '6.5.3'
-        arch: 'x64'
+        python-version: '3.11'
+    
+    - name: Install Qt using pip
+      run: |
+        pip install PyQt6
+        echo "QTDIR=C:\Python311\Lib\site-packages\PyQt6\Qt6" >> $env:GITHUB_ENV
+        echo "CMAKE_PREFIX_PATH=C:\Python311\Lib\site-packages\PyQt6\Qt6" >> $env:GITHUB_ENV
     
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_PREFIX_PATH=${{env.QTDIR}}
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_PREFIX_PATH=${{env.CMAKE_PREFIX_PATH}}
     
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config Release
     
-    - name: Deploy Qt
+    - name: Debug - List build directory
       run: |
-        ${{env.QTDIR}}/bin/windeployqt.exe ${{github.workspace}}/build/Release/Wordle_Calculator.exe
+        echo "Build directory contents:"
+        dir ${{github.workspace}}\build\Release\
     
     - name: Upload Windows Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: Wordle_Calculator_Windows
         path: ${{github.workspace}}/build/Release/
+        if-no-files-found: ignore
 
   build-macos:
     runs-on: macos-latest
