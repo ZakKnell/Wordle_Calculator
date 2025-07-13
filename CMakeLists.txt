@@ -19,6 +19,10 @@ if(APPLE)
     )
 endif()
 
+if (WIN32)
+    set_target_properties(Wordle_Calculator PROPERTIES WIN32_EXECUTABLE TRUE)
+endif()
+
 find_package(Qt6 COMPONENTS Widgets REQUIRED)
 target_link_libraries(Wordle_Calculator PRIVATE Qt6::Widgets)
 target_compile_definitions(Wordle_Calculator PRIVATE USE_QT)
