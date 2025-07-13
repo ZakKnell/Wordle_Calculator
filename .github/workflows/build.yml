@@ -29,6 +29,11 @@ jobs:
       run: |
         windeployqt ${{github.workspace}}\build\Release\Wordle_Calculator.exe
     
+    - name: Copy word list files
+      run: |
+        copy ${{github.workspace}}\WordList.txt ${{github.workspace}}\build\Release\
+        copy ${{github.workspace}}\AcceptedWordList ${{github.workspace}}\build\Release\
+    
     - name: Debug - List build directory
       run: |
         echo "Build directory contents:"
