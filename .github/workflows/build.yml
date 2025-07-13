@@ -24,6 +24,10 @@ jobs:
     
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config Release
+
+    - name: Deploy Qt DLLs with windeployqt
+      run: |
+        windeployqt ${{github.workspace}}\build\Release\Wordle_Calculator.exe
     
     - name: Debug - List build directory
       run: |
