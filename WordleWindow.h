@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <QMap>
+#include <QSet>
 
 class QLineEdit;
 class QPushButton;
