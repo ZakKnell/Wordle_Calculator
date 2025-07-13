@@ -18,7 +18,7 @@ jobs:
       with:
         version: '6.6.2'
         arch: 'win64_msvc2019_64'
-        modules: 'qtcharts qtbase qtdeclarative qtgraphicaleffects qtimageformats qtmultimedia qtquickcontrols qtquickcontrols2 qtsvg qttools qttranslations qtwebchannel qtwebengine qtwebenginecore qtwebenginewidgets qtwebsockets qtwebview'
+        modules: 'qtbase'
     
     - name: Configure CMake
       run: cmake -B ${{github.workspace}}/build -DCMAKE_PREFIX_PATH=${{env.QTDIR}}
