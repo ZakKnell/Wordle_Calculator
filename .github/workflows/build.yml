@@ -1,4 +1,4 @@
-name: Build Windows Executable
+name: Build Executables
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  build-windows:
     runs-on: windows-latest
     
     steps:
@@ -30,8 +30,37 @@ jobs:
       run: |
         ${{env.QTDIR}}/bin/windeployqt.exe ${{github.workspace}}/build/Release/Wordle_Calculator.exe
     
-    - name: Upload Artifacts
-      uses: actions/upload-artifact@v3
+    - name: Upload Windows Artifacts
+      uses: actions/upload-artifact@v4
       with:
         name: Wordle_Calculator_Windows
-        path: ${{github.workspace}}/build/Release/ 
+        path: ${{github.workspace}}/build/Release/
+
+  build-macos:
+    runs-on: macos-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Qt
+      uses: jurplel/install-qt-action@v3
+      with:
+        version: '6.5.0'
+        arch: 'x64'
+        modules: 'qtcharts'
+    
+    - name: Configure CMake
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_PREFIX_PATH=${{env.QTDIR}}
+    
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build --config Release
+    
+    - name: Deploy Qt
+      run: |
+        ${{env.QTDIR}}/bin/macdeployqt ${{github.workspace}}/build/Wordle_Calculator.app -dmg
+    
+    - name: Upload macOS Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Wordle_Calculator_macOS
+        path: ${{github.workspace}}/build/Wordle_Calculator.dmg 
