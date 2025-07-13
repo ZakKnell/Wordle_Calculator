@@ -75,9 +75,14 @@ jobs:
           exit 0
         fi
     
+    - name: Zip app bundle
+      run: |
+        cd ${{github.workspace}}/build
+        zip -r Wordle_Calculator_macOS.zip Wordle_Calculator.app
+    
     - name: Upload macOS Artifacts
       uses: actions/upload-artifact@v4
       with:
         name: Wordle_Calculator_macOS
-        path: ${{github.workspace}}/build/Wordle_Calculator.app
+        path: ${{github.workspace}}/build/Wordle_Calculator_macOS.zip
         if-no-files-found: ignore 
