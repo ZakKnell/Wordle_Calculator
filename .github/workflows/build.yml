@@ -14,18 +14,14 @@ jobs:
     - uses: actions/checkout@v3
     
     - name: Setup Qt using official installer
-      uses: actions/setup-python@v5
+      uses: jurplel/install-qt-action@v4
       with:
-        python-version: '3.11'
-    
-    - name: Install Qt using pip
-      run: |
-        pip install PyQt6
-        echo "QTDIR=C:\Python311\Lib\site-packages\PyQt6\Qt6" >> $env:GITHUB_ENV
-        echo "CMAKE_PREFIX_PATH=C:\Python311\Lib\site-packages\PyQt6\Qt6" >> $env:GITHUB_ENV
+        version: '6.6.2'
+        arch: 'win64_msvc2019_64'
+        modules: 'qtcharts qtbase qtdeclarative qtgraphicaleffects qtimageformats qtmultimedia qtquickcontrols qtquickcontrols2 qtsvg qttools qttranslations qtwebchannel qtwebengine qtwebenginecore qtwebenginewidgets qtwebsockets qtwebview'
     
     - name: Configure CMake
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_PREFIX_PATH=${{env.CMAKE_PREFIX_PATH}}
+      run: cmake -B ${{github.workspace}}/build -DCMAKE_PREFIX_PATH=${{env.QTDIR}}
     
     - name: Build
       run: cmake --build ${{github.workspace}}/build --config Release

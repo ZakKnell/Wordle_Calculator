@@ -4,8 +4,10 @@ project(Wordle_Calculator)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_AUTOMOC ON)
 
-# Set Qt path for Homebrew installation
-set(CMAKE_PREFIX_PATH "/opt/homebrew")
+# Set Qt path for Homebrew installation (macOS)
+if(APPLE)
+    set(CMAKE_PREFIX_PATH "/opt/homebrew")
+endif()
 
 add_executable(Wordle_Calculator main.cpp WordleWindow.cpp)
 
